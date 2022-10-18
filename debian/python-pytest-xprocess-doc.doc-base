@@ -1,0 +1,9 @@
+Document: python-pytest-xprocess-doc
+Title: pytest-xprocess Documentation
+Author: N/A
+Abstract: Sphinx documentation for pytest-xprocess
+Section: Programming/Python
+
+Format: HTML
+Index: /usr/share/doc/python-pytest-xprocess-doc/html/index.html
+Files: /usr/share/doc/python-pytest-xprocess-doc/html/*

@@ -1,0 +1,35 @@
+#!/usr/bin/make -f
+
+UPSTREAM_GIT := https://github.com/pytest-dev/pytest-xprocess.git
+include /usr/share/openstack-pkg-tools/pkgos.make
+
+export SETUPTOOLS_SCM_PRETEND_VERSION=$(shell dpkg-parsechangelog -SVersion | sed -e 's/^[[:digit:]]*://' -e 's/[-].*//' -e 's/~/.0/' -e 's/+dfsg1//' | head -n 1)
+
+%:
+	dh $@ --with python3,sphinxdoc
+
+override_dh_auto_clean:
+	rm -rf build .stestr
+	find . -iname '*.pyc' -delete
+	for i in $$(find . -type d -iname __pycache__) ; do rm -rf $$i ; done
+
+override_dh_auto_build:
+	echo "Do nothing..."
+
+override_dh_auto_install:
+	pkgos-dh_auto_install --no-py2 --in-tmp
+
+ifeq (,$(findstring nocheck, $(DEB_BUILD_OPTIONS)))
+	set -e ; for pyvers in $(PYTHON3S); do \
+		PYTHONPATH=$(CURDIR)/debian/tmp/usr/lib/python3/dist-packages python$$pyvers -m pytest -v ; \
+	done
+endif
+
+override_dh_auto_test:
+	echo "Do nothing..."
+
+override_dh_sphinxdoc:
+ifeq (,$(findstring nodoc, $(DEB_BUILD_OPTIONS)))
+	PYTHONPATH=. python3 -m sphinx -b html docs/source debian/python-pytest-xprocess-doc/usr/share/doc/python-pytest-xprocess-doc/html
+	dh_sphinxdoc
+endif

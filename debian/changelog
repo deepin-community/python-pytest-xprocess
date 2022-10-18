@@ -1,0 +1,11 @@
+python-pytest-xprocess (0.18.1-2) unstable; urgency=medium
+
+  * Rebuilt source-only.
+
+ -- Thomas Goirand <zigo@debian.org>  Mon, 27 Sep 2021 11:26:12 +0200
+
+python-pytest-xprocess (0.18.1-1) unstable; urgency=medium
+
+  * Initial release. (Closes: #994607)
+
+ -- Thomas Goirand <zigo@debian.org>  Sat, 18 Sep 2021 15:15:36 +0200
