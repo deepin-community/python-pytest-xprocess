@@ -1,7 +1,19 @@
+import os
+
 import py
 import pytest
 
 from xprocess import XProcess
+
+
+def get_log_files(root_dir):
+    proc_dirs = [f.path for f in os.scandir(root_dir) if f.is_dir()]
+    return [
+        os.path.join(proc_dir, f)
+        for proc_dir in proc_dirs
+        for f in os.listdir(proc_dir)
+        if f.endswith("log")
+    ]
 
 
 def getrootdir(config):
@@ -42,10 +54,13 @@ def xprocess(request):
         # pass in xprocess object into pytest_unconfigure
         # through config for proper cleanup during teardown
         request.config._xprocess = xproc
+        # start every run with clean log files
+        for log_file in get_log_files(xproc.rootdir):
+            open(log_file, errors="surrogateescape").close()
         yield xproc
 
 
-@pytest.mark.hookwrapper
+@pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
     logfiles = getattr(item.config, "_extlogfiles", None)
     report = yield
@@ -60,19 +75,13 @@ def pytest_runtest_makereport(item, call):
 
 
 def pytest_unconfigure(config):
-    try:
-        xprocess = config._xprocess
-    except AttributeError:
-        # xprocess fixture was not used
-        pass
-    else:
-        xprocess._clean_up_resources()
-
-    print(
-        "pytest-xprocess reminder::Be sure to terminate the started process by running "
-        "'pytest --xkill' if you have not explicitly done so in your fixture with "
-        "'xprocess.getinfo(<process_name>).terminate()'."
-    )
+    verbosity_level = config.getoption("verbose")
+    if verbosity_level >= 1:
+        print(
+            "pytest-xprocess reminder::Be sure to terminate the started process "
+            "by running 'pytest --xkill' if you have not explicitly done so in your "
+            "fixture with 'xprocess.getinfo(<process_name>).terminate()'."
+        )
 
 
 def pytest_configure(config):
@@ -89,7 +98,7 @@ class InterruptionHandler:
         self.config = config
 
     def info_objects(self):
-        return self.config._xprocess._info_objects
+        return [xrsc.info for xrsc in self.config._xprocess.resources]
 
     def interruption_clean_up(self):
         try:
@@ -100,7 +109,7 @@ class InterruptionHandler:
             for info, terminate_on_interrupt in self.info_objects():
                 if terminate_on_interrupt:
                     info.terminate()
-            xprocess._clean_up_resources()
+            xprocess._force_clean_up()
 
     def pytest_keyboard_interrupt(self, excinfo):
         self.interruption_clean_up()

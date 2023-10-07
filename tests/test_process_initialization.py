@@ -50,9 +50,9 @@ def test_ensure_not_restart(tcp_port, proc_name, xprocess):
 @pytest.mark.parametrize(
     "proc_name,proc_pttrn,lines",
     [
-        ("s1", "started", 20),
+        ("s1", "started", 21),
         ("s2", "spam, bacon, eggs", 30),
-        ("s3", "finally started", 62),
+        ("s3", "finally started", 130),
     ],
 )
 def test_startup_detection_max_read_lines(
@@ -107,12 +107,9 @@ def test_popen_kwargs(tcp_port, proc_name, xprocess):
     xprocess.ensure(proc_name, Starter)
 
     info = xprocess.getinfo(proc_name)
-    proc = xprocess._popen_instances[-1]
+    proc = xprocess.resources[-1].popen
 
-    if sys.version_info < (3, 7):
-        text_mode = proc.universal_newlines
-    else:
-        text_mode = proc.text_mode
+    text_mode = proc.text_mode
 
     assert info.isrunning()
     assert text_mode

@@ -12,6 +12,7 @@ Build-Depends:
  python3-setuptools,
  python3-sphinx,
 Build-Depends-Indep:
+ python3-py,
  python3-pytest,
  python3-psutil,
  python3-setuptools-scm,
@@ -19,10 +20,12 @@ Standards-Version: 4.5.1
 Vcs-Git: https://salsa.debian.org/python-team/packages/python-pytest-xprocess.git
 Vcs-Browser: https://salsa.debian.org/python-team/packages/python-pytest-xprocess
 Homepage: https://github.com/pytest-dev/pytest-xprocess/
+Rules-Requires-Root: no
 
 Package: python3-pytest-xprocess
 Architecture: all
 Depends:
+ python3-py,
  python3-pytest,
  python3-psutil,
  ${misc:Depends},

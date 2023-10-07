@@ -1,3 +1,27 @@
+Metadata-Version: 2.1
+Name: pytest-xprocess
+Version: 0.22.2
+Summary: A pytest plugin for managing processes across test runs.
+Home-page: https://github.com/pytest-dev/pytest-xprocess/
+Author: Holger Krekel
+Author-email: holger@merlinux.eu
+License: MIT
+Classifier: Framework :: Pytest
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Topic :: Software Development :: Testing
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Utilities
+Requires-Python: >=3.7
+Description-Content-Type: text/x-rst
+License-File: LICENSE
+
 pytest-xprocess
 ===============
 

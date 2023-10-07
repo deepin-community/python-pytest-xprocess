@@ -1,3 +1,33 @@
+0.22.2 (2023-01-05)
+-------------------
+
+- Python 3.10 is now officially supported
+- `surrogateescape` will now be used as error handling strategy for encode/decode operations. (`#127 <https://github.com/pytest-dev/pytest-xprocess/pull/127>`)
+- Make log files persistency, added in `0.21.0`, optional, defaulting to True. The previous logging behavior (prior to `0.21.0`) can be enabled by setting `persist_logs` flag to `False` when calling `XProcess.ensure`. (`#122 <https://github.com/pytest-dev/pytest-xprocess/pull/122>`_)
+- Fix resource warnings due to leaked internal file handles (`#121 <https://github.com/pytest-dev/pytest-xprocess/pull/121>`_)
+- Ignore zombie processes which are erroneously considered alive with python 3.11
+  (`#117 <https://github.com/pytest-dev/pytest-xprocess/pull/118>`_)
+
+0.21.0 (2022-11-27)
+-------------------
+
+- Explicitly add `py` package as a dependency, fixing issue with `pytest` >= 7.2.0
+- Process log files will not be overwritten for each new process anymore, making it
+  easier to debug issues that occurred in the middle of failed test runs
+
+0.20.0 (2022-08-29)
+-------------------
+
+- Cleanup reminders will now only be printed for verbosity
+  levels equal or greater than 1
+
+0.19.0 (2022-05-23)
+-------------------
+
+- drop support for python 3.5 and 3.6
+- reorganize internals. ``pytest-xprocess`` is now a package and all resources
+  used by running processes are kept as instances of :class:``XProcessResources``.
+
 0.18.1 (2021-07-27)
 -------------------
 
