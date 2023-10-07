@@ -1,3 +1,35 @@
+python-pytest-xprocess (0.22.2-1) unstable; urgency=medium
+
+  * Add missing python3-py (build-)depends (Closes: #1042161).
+
+ -- Thomas Goirand <zigo@debian.org>  Mon, 07 Aug 2023 17:21:18 +0200
+
+python-pytest-xprocess (0.22.2-0.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * New upstream version 0.22.2 (Closes: #1026549)
+
+ -- David Prévot <taffit@debian.org>  Sat, 28 Jan 2023 16:48:09 +0100
+
+python-pytest-xprocess (0.18.1-5) unstable; urgency=medium
+
+  * Team upload.
+  * [8a39ff0] run upstream tests as autopkgtest
+
+ -- Joseph Nahmias <jello@debian.org>  Sun, 17 Jul 2022 11:04:01 -0400
+
+python-pytest-xprocess (0.18.1-4) unstable; urgency=medium
+
+  * Blacklist test_interruption_cleanup() which is failing (Closes: #1013706).
+
+ -- Thomas Goirand <zigo@debian.org>  Thu, 30 Jun 2022 13:30:21 +0200
+
+python-pytest-xprocess (0.18.1-3) unstable; urgency=medium
+
+  * Add Rules-Requires-Root: no to avoid fakeroot #1001961 (Closes: #1002437).
+
+ -- Thomas Goirand <zigo@debian.org>  Thu, 23 Dec 2021 14:07:44 +0100
+
 python-pytest-xprocess (0.18.1-2) unstable; urgency=medium
 
   * Rebuilt source-only.

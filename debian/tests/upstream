@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+pyvers=$(py3versions -r 2>/dev/null)
+
+cp -a tests "$AUTOPKGTEST_TMP"
+cd "$AUTOPKGTEST_TMP"
+
+PYTEST_MATCH="not test_interruption_cleanup and not test_interruption_does_not_cleanup"
+for py in ${pyvers}; do
+  echo "-=-=-=-=-=-=-=- running tests for ${py} -=-=-=-=-=-=-=-=-"
+  printf '$ %s\n' "${py} -m pytest -v -k \"${PYTEST_MATCH}\" tests"
+  ${py} -m pytest -v -k "${PYTEST_MATCH}" tests
+done

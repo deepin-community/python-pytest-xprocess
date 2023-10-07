@@ -13,6 +13,9 @@ import psutil
 from py import std
 
 
+XPROCESS_BLOCK_DELIMITER = "@@__xproc_block_delimiter__@@"
+
+
 class XProcessInfo:
     """Holds information of an active process instance represented by
     a XProcess Object and offers recursive termination functionality of
@@ -80,21 +83,23 @@ class XProcessInfo:
             for p in reversed(kill_list):
                 self._signal_process(p, signal.SIGTERM)
             _, alive = psutil.wait_procs(kill_list, timeout=timeout)
+            alive = [a for a in alive if a.status() != psutil.STATUS_ZOMBIE]
 
-            # forcefuly terminate procs still running
+            # forcefully terminate procs still running
             for p in alive:
                 self._signal_process(p, signal.SIGKILL)
             _, alive = psutil.wait_procs(kill_list, timeout=timeout)
+            alive = [a for a in alive if a.status() != psutil.STATUS_ZOMBIE]
 
             # even if termination itself fails,
             # the signal has been sent to the process
             self._termination_signal = True
 
             if alive:  # pragma: no cover
-                print("could not terminated process {}".format(alive))
+                print(f"could not terminated process {alive}")
                 return -1
         except (psutil.Error, ValueError) as err:
-            print("Error while terminating process {}".format(err))
+            print(f"Error while terminating process {err}")
             return -1
         else:
             return 1
@@ -120,6 +125,48 @@ class XProcessInfo:
         )
 
 
+class XProcessResources:
+    """Resources used by a running process.
+    Each time XProcess.ensure is called a single XProcessResources
+    instance will be created and all resources used by the started
+    process will be held by it. Namely: file handle, XProcessInfo
+    and Popen instance.
+    """
+
+    def __init__(self, timeout):
+        self.timeout = timeout
+        # handle to the process logfile
+        self.fhandles = []
+        # XProcessInfo holding information on XProcess instance
+        self.info = None
+        # Each XProcess will have a related Popen instance
+        # used for process management through python's
+        # subprocess API
+        self.popen = None
+
+    def __del__(self):
+        self.release()
+
+    def __repr__(self):
+        return "<XProcessResources {}, {}, {}>".format(
+            self.fhandles, self.info, self.popen
+        )
+
+    def release(self):
+        # file handles should always be closed
+        # in order to avoid ResourceWarnings
+        for fhandle in self.fhandles:
+            fhandle.close()
+
+        # We should wait on procs exit status if
+        # termination signal has been issued
+        try:
+            if self.info[0]._termination_signal:
+                self.popen.wait(self.timeout)
+        except TypeError:
+            pass
+
+
 class XProcess:
     """Main xprocess class. Represents a running process instance for which
     a set of actions is offered, such as process startup, command line actions
@@ -130,11 +177,9 @@ class XProcess:
         self.rootdir = rootdir
         self.proc_wait_timeout = proc_wait_timeout
 
-        # these will be used to keep all necessary
-        # references for proper cleanup before exiting
-        self._info_objects = []
-        self._file_handles = []
-        self._popen_instances = []
+        # used to keep all necessary references
+        # for proper cleanup before exiting
+        self.resources = []
 
         class Log:
             def debug(self, msg, *args):
@@ -157,7 +202,7 @@ class XProcess:
 
         return XProcessInfo(self.rootdir, name)
 
-    def ensure(self, name, preparefunc, restart=False):
+    def ensure(self, name, preparefunc, restart=False, persist_logs=True):
         """Returns (PID, logfile) from a newly started or already
             running process.
 
@@ -172,37 +217,38 @@ class XProcess:
         @return: (PID, logfile) logfile will be seeked to the end if the
                  server was running, otherwise seeked to the line after
                  where the waitpattern matched."""
-
         from subprocess import Popen, STDOUT
+
+        xresource = XProcessResources(self.proc_wait_timeout)
+        self.resources.append(xresource)
 
         info = self.getinfo(name)
         if not restart and not info.isrunning():
             restart = True
 
         if restart:
-            # ensure the process is terminated first
             if info.pid is not None:
                 info.terminate()
 
+            # TODO: after droping py module, review this and break
+            # it down into more readable chunks, possibly extracting pieces
+            # into internal methods would make things more clear too
             controldir = info.controldir.ensure(dir=1)
             starter = preparefunc(controldir, self)
             args = [str(x) for x in starter.args]
             self.log.debug("%s$ %s", controldir, " ".join(args))
-            stdout = open(str(info.logpath), "wb", 0)
-
-            # is env still necessary? we could pass all in popen_kwargs
+            if persist_logs:
+                stdout = open(str(info.logpath), "a+b", 0)
+                stdout.write(bytes(f"{XPROCESS_BLOCK_DELIMITER}\n", "utf8"))
+            else:
+                stdout = open(str(info.logpath), "wb", 0)
             kwargs = {"env": starter.env}
-
             popen_kwargs = {
                 "cwd": str(controldir),
                 "stdout": stdout,
                 "stderr": STDOUT,
-                # this gives the user the ability to
-                # override the previous keywords if
-                # desired
                 **starter.popen_kwargs,
             }
-
             if sys.platform == "win32":  # pragma: no cover
                 kwargs["startupinfo"] = sinfo = std.subprocess.STARTUPINFO()
                 sinfo.dwFlags |= std.subprocess.STARTF_USESHOWWINDOW
@@ -211,24 +257,29 @@ class XProcess:
                 kwargs["close_fds"] = True
                 kwargs["preexec_fn"] = os.setpgrp  # no CONTROL-C
 
-            # keep references of all popen
-            # and info objects for cleanup
-            self._info_objects.append((info, starter.terminate_on_interrupt))
-            self._popen_instances.append(Popen(args, **popen_kwargs, **kwargs))
+            # keep references of all popen and info objects for cleanup
+            xresource.info = (info, starter.terminate_on_interrupt)
+            xresource.popen = Popen(args, **popen_kwargs, **kwargs)
 
-            info.pid = pid = self._popen_instances[-1].pid
+            info.pid = pid = xresource.popen.pid
             info.pidpath.write(str(pid))
             self.log.debug("process %r started pid=%s", name, pid)
             stdout.close()
 
-        # keep track of all file handles so we can
-        # cleanup later during teardown phase
-        self._file_handles.append(info.logpath.open())
+        log_file_handle = open(info.logpath, errors="surrogateescape")
+        xresource.fhandles.append(log_file_handle)
+        pytest_extlogfiles = self.config.__dict__.setdefault("_extlogfiles", {})
+        pytest_extlogfiles[name] = log_file_handle
+
+        if persist_logs:
+            process_log_block_handle = open(info.logpath, errors="surrogateescape")
+            xresource.fhandles.append(process_log_block_handle)
+            self._skip_previous_log_blocks(process_log_block_handle, log_file_handle)
 
         if not restart:
-            self._file_handles[-1].seek(0, 2)
+            log_file_handle.seek(0, 2)
         else:
-            if not starter.wait(self._file_handles[-1]):
+            if not starter.wait(log_file_handle):
                 raise RuntimeError(
                     "Could not start process {}, the specified "
                     "log pattern was not found within {} lines.".format(
@@ -237,11 +288,20 @@ class XProcess:
                 )
             self.log.debug("%s process startup detected", name)
 
-        pytest_extlogfiles = self.config.__dict__.setdefault("_extlogfiles", {})
-        pytest_extlogfiles[name] = self._file_handles[-1]
-        self.getinfo(name)
-
         return info.pid, info.logpath
+
+    def _skip_previous_log_blocks(self, log_block_handle, log_file_handle):
+        lines = [line for line in log_block_handle]
+        if not lines:  # cut it short if nothing to skip
+            return
+        proc_block_counter = sum(
+            1 for line in lines if XPROCESS_BLOCK_DELIMITER in line
+        )
+        for line in log_file_handle:
+            if XPROCESS_BLOCK_DELIMITER in line:
+                proc_block_counter -= 1
+            if proc_block_counter <= 0:
+                break
 
     def _infos(self):
         return (self.getinfo(p.basename) for p in self.rootdir.listdir())
@@ -267,19 +327,9 @@ class XProcess:
             tw.line(tmpl.format(**locals()))
         return 0
 
-    def _clean_up_resources(self):
-        # file handles should always be closed
-        # in order to avoid ResourceWarnings
-        for f in self._file_handles:
-            f.close()
-        # XProcessInfo objects and Popen objects have
-        # a one to one relation, so we should wait on
-        # procs exit status if termination signal has
-        # been isued for that particular XProcessInfo
-        # Object (subprocess requirement)
-        for (info, _), proc in zip(self._info_objects, self._popen_instances):
-            if info._termination_signal:
-                proc.wait(self.proc_wait_timeout)
+    def _force_clean_up(self):
+        for xresource in self.resources:
+            xresource.release()
 
 
 class ProcessStarter(ABC):
@@ -323,14 +373,12 @@ class ProcessStarter(ABC):
 
     def startup_check(self):
         """Used to assert process responsiveness after pattern match"""
-
         return True
 
     def wait_callback(self):
         """Assert that process is ready to answer queries using provided
         callback funtion. Will raise TimeoutError if self.callback does not
         return True before self.timeout seconds"""
-
         while True:
             sleep(0.1)
             if self.startup_check():
@@ -346,7 +394,6 @@ class ProcessStarter(ABC):
 
     def wait(self, log_file):
         """Wait until the pattern is mached and callback returns successful."""
-
         self._max_time = datetime.now() + timedelta(seconds=self.timeout)
         lines = map(self.log_line, self.filter_lines(self.get_lines(log_file)))
         has_match = any(std.re.search(self.pattern, line) for line in lines)
@@ -355,13 +402,11 @@ class ProcessStarter(ABC):
 
     def filter_lines(self, lines):
         """fetch first <max_read_lines>, ignoring blank lines."""
-
         non_empty_lines = (x for x in lines if x.strip())
         return itertools.islice(non_empty_lines, self.max_read_lines)
 
     def log_line(self, line):
         """Write line to process log file."""
-
         self.process.log.debug(line)
         return line
 
@@ -369,13 +414,10 @@ class ProcessStarter(ABC):
         """Read and yield one line at a time from log_file. Will raise
         TimeoutError if pattern is not matched before self.timeout
         seconds."""
-
         while True:
             line = log_file.readline()
-
             if not line:
                 std.time.sleep(0.1)
-
             if datetime.now() > self._max_time:
                 raise TimeoutError(
                     "The provided start pattern {} could not be matched \
@@ -383,5 +425,4 @@ class ProcessStarter(ABC):
                         self.pattern, self.timeout
                     )
                 )
-
             yield line

@@ -21,7 +21,7 @@ override_dh_auto_install:
 
 ifeq (,$(findstring nocheck, $(DEB_BUILD_OPTIONS)))
 	set -e ; for pyvers in $(PYTHON3S); do \
-		PYTHONPATH=$(CURDIR)/debian/tmp/usr/lib/python3/dist-packages python$$pyvers -m pytest -v ; \
+		PYTHONPATH=$(CURDIR)/debian/tmp/usr/lib/python3/dist-packages python$$pyvers -m pytest -v -k "not test_interruption_cleanup and not test_interruption_does_not_cleanup"; \
 	done
 endif
 
